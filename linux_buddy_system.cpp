@@ -25,10 +25,12 @@ static const int ram_size = 16;
 // Number of frames
 // static const unsigned long
 // nPages = int((ram_size * pow(2, 30))/(page_size * pow(2,10)));
-static const unsigned long nPages = 4194304; // (2^22)
+// static const unsigned long nPages = 4194304; // (2^22)
+static const unsigned long nPages = 2048; // (2^22)
 
 // Declare mockup of ram memory
 static struct page mem_map[nPages];
+static int mem_bit[nPages] = {0};
 
 class Buddy {
 private:
@@ -124,6 +126,29 @@ double avg(std::vector<double> d){
   return 0;
 }
 
+void set_membit(struct page* page, int order) {
+    unsigned long page_index = page - mem_map;
+    unsigned long page_end = page_index + (1<<order);
+    for(int i=page_index; i<page_end; i++) {
+        mem_bit[i] = 1;
+    }
+}
+
+void clear_membit(struct page* page, int order) {
+    unsigned long page_index = page - mem_map;
+    unsigned long page_end = page_index + (1<<order);
+    for(int i=page_index; i<page_end; i++) {
+        mem_bit[i] = 0;
+    }
+}
+
+void print_membit() {
+    for(int i=0; i<nPages; i++) {
+        cout << mem_bit[i];
+    }
+    cout << endl;
+}
+
 int main() {
   mem_map_base = (struct page *)&mem_map;
   std::vector<struct page *> alloc_page_p;
@@ -139,48 +164,101 @@ int main() {
   std::mt19937 eng(rd()); // seed the generator
   std::uniform_int_distribution<> distr(1, 10); // define the range
 
-  for(int i; i<100; i++) {
+  cout << nPages << endl;
+
+  for(int i; i<1; i++) {
     initStart = microsec_clock::universal_time();
     Buddy buddy(mem_map);
     initStop = microsec_clock::universal_time();
 
+    print_membit();
+
+    cout << "================== start test1 ==============" << endl;
+
     /* test 1 */
     unsigned long psum = 0;
     allocate1Start = microsec_clock::universal_time();
-    while(psum < 0.75*nPages){
-      int porder = distr(eng);
+    {
+      int porder = 5;
       psum += 1 << porder;
       page = buddy.alloc_pages(porder);
       alloc_page_p.push_back(page);
       alloc_page_order.push_back(porder);
+      set_membit(page, porder);
+      print_membit();
     }
+
+    {
+      int porder = 5;
+      psum += 1 << porder;
+      page = buddy.alloc_pages(porder);
+      alloc_page_p.push_back(page);
+      alloc_page_order.push_back(porder);
+      set_membit(page, porder);
+      print_membit();
+    }
+
+    {
+      int porder = 5;
+      psum += 1 << porder;
+      page = buddy.alloc_pages(porder);
+      alloc_page_p.push_back(page);
+      alloc_page_order.push_back(porder);
+      set_membit(page, porder);
+      print_membit();
+    }
+
     allocate1Stop = microsec_clock::universal_time();
 
+    cout << "================== start freeing ==============" << endl;
+
     free1Start =  microsec_clock::universal_time();
-    while (psum > nPages/2) {
+    {
       int porder = alloc_page_order.back();
       psum -= 1 << porder;
-      buddy.free_pages(alloc_page_p.back(), porder);
+      buddy.free_pages(page = alloc_page_p.back(), porder);
+      clear_membit(page, porder);
+      print_membit();
       alloc_page_p.pop_back();
       alloc_page_order.pop_back();
     }
+
+    {
+      int porder = alloc_page_order.back();
+      psum -= 1 << porder;
+      buddy.free_pages(page = alloc_page_p.back(), porder);
+      clear_membit(page, porder);
+      print_membit();
+      alloc_page_order.pop_back();
+      alloc_page_p.pop_back();
+    }
+
     free1Stop = microsec_clock::universal_time();
+
+    cout << "================== finish test1 ==============" << endl;
 
     /* test 2 */
     allocate2Start = microsec_clock::universal_time();
-    while(psum < 0.75*nPages){
-      int porder = distr(eng);
+    {
+      int porder = 10;
       psum += 1 << porder;
       page = buddy.alloc_pages(porder);
       alloc_page_p.push_back(page);
       alloc_page_order.push_back(porder);
+      set_membit(page, porder);
+      print_membit();
     }
     allocate2Stop = microsec_clock::universal_time();
+
     free2Start = microsec_clock::universal_time();
-    while (alloc_page_p.size() > 0) {
-      buddy.free_pages(alloc_page_p.back(), alloc_page_order.back());
-      alloc_page_p.pop_back();
+    {
+      int porder = alloc_page_order.back();
+      psum -= 1 << porder;
+      buddy.free_pages(page = alloc_page_p.back(), porder);
+      clear_membit(page, porder);
+      print_membit();
       alloc_page_order.pop_back();
+      alloc_page_p.pop_back();
     }
     free2Stop = microsec_clock::universal_time();
 
